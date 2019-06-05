@@ -1,0 +1,4 @@
+org.wso2.carbon.user.provision
+org.wso2.carbon.user.provision.common
+org.wso2.carbon.user.provision.internal
+org.wso2.carbon.user.provision.service
