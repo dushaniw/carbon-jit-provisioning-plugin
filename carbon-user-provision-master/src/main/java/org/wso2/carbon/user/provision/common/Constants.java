@@ -36,4 +36,13 @@ public class Constants {
         public static final String JIT_PROVISION_SAML2SSO_IMPL_NAME = "SAML2SSOUserProvisionerImpl";
         public static final String ISSUER = "Issuer";
     }
+
+    public static class InternalRoleDomains {
+
+        public static final String APPLICATION_DOMAIN = "Application";
+        public static final String WORKFLOW_DOMAIN = "Workflow";
+
+        private InternalRoleDomains() {
+        }
+    }
 }

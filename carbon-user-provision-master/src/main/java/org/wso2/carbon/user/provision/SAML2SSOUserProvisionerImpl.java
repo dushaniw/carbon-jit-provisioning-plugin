@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.user.provision;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.opensaml.saml2.core.Assertion;
@@ -26,6 +27,7 @@ import org.opensaml.saml2.core.AttributeStatement;
 import org.opensaml.saml2.core.Response;
 import org.opensaml.xml.XMLObject;
 import org.w3c.dom.Element;
+import org.wso2.carbon.CarbonConstants;
 import org.wso2.carbon.CarbonException;
 import org.wso2.carbon.base.MultitenantConstants;
 import org.wso2.carbon.core.util.AnonymousSessionUtil;
@@ -46,6 +48,9 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.*;
+
+import static org.wso2.carbon.user.provision.common.Constants.InternalRoleDomains.APPLICATION_DOMAIN;
+import static org.wso2.carbon.user.provision.common.Constants.InternalRoleDomains.WORKFLOW_DOMAIN;
 
 /**
  * Ths class provides the implementation for the services exposed by the service class.
@@ -175,18 +180,13 @@ public class SAML2SSOUserProvisionerImpl implements SAML2SSOUserProvisioner {
                 username = MultitenantUtils.getTenantAwareUsername(username);
                 if (userStore.isExistingUser(username)) {
                     // Update an already existing user
-                    Collection<String> currentRolesList = Arrays.asList(userStore.getRoleListOfUser(username));
+                    List<String> currentRolesList = Arrays.asList(userStore.getRoleListOfUser(username));
                     // addingRoles = (newRoles AND existingRoles) - currentRolesList)
                     rolesToBeAdded.removeAll(currentRolesList);
 
-                    Collection<String> rolesToBeDeleted = new ArrayList<String>();
-                    rolesToBeDeleted.addAll(currentRolesList);
-                    // rolesToBeDeleted = currentRolesList - newRoles
-                    rolesToBeDeleted.removeAll(Arrays.asList(newRoles));
+                    Collection<String> rolesToBeDeleted = retrieveRolesToBeDeleted(realm, currentRolesList, Arrays.asList(newRoles));
 
                     RealmConfiguration realmConfiguration = realm.getRealmConfiguration();
-                    // Exclude Internal/everyonerole from deleting roles since it cannot be deleted
-                    rolesToBeDeleted.remove(realmConfiguration.getEveryOneRoleName());
 
                     // Check for case whether super admin login
                     if (userStore.getRealmConfiguration().isPrimary() && username.equals(realmConfiguration.getAdminUserName())) {
@@ -328,4 +328,52 @@ public class SAML2SSOUserProvisionerImpl implements SAML2SSOUserProvisioner {
             return Constants.ROLE_ATTRIBUTE_NAME;
         }
     }
+
+    /**
+     * Retrieve the list of roles to be deleted.
+     *
+     * @param realm            user realm
+     * @param currentRolesList current role list of the user
+     * @param rolesToAdd       roles that are about to be added
+     * @return roles to be deleted
+     * @throws UserStoreException
+     */
+    protected List<String> retrieveRolesToBeDeleted(UserRealm realm, List<String> currentRolesList,
+                                                    List<String> rolesToAdd) throws UserStoreException {
+
+        List<String> deletingRoles = new ArrayList<String>();
+        deletingRoles.addAll(currentRolesList);
+
+        // deletingRoles = currentRolesList - rolesToAdd
+        deletingRoles.removeAll(rolesToAdd);
+
+        // Exclude Internal/everyonerole from deleting role since its cannot be deleted
+        deletingRoles.remove(realm.getRealmConfiguration().getEveryOneRoleName());
+
+        // Remove all internal roles from deleting list
+        deletingRoles.removeAll(extractInternalRoles(currentRolesList));
+
+        return deletingRoles;
+    }
+
+    /**
+     * Extract all internal roles from a list of provided roles.
+     *
+     * @param allRoles list of roles to filter from
+     * @return internal role list
+     */
+    private List<String> extractInternalRoles(List<String> allRoles) {
+
+        List<String> internalRoles = new ArrayList();
+
+        for (String role : allRoles) {
+            if (StringUtils.contains(role, APPLICATION_DOMAIN + CarbonConstants.DOMAIN_SEPARATOR)
+                    || StringUtils.contains(role, WORKFLOW_DOMAIN + CarbonConstants.DOMAIN_SEPARATOR)) {
+                internalRoles.add(role);
+            }
+        }
+
+        return internalRoles;
+    }
+
 }
